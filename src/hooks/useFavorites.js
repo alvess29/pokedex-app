@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { collection, deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { auth, db } from '../services/firebase';
+import { auth, db, firebaseEnabled } from '../services/firebase';
 
 export function useFavorites() {
   const [favoriteNames, setFavoriteNames] = useState([]);
 
   useEffect(() => {
+    if (!firebaseEnabled) return;
+
     let stopListening = () => {};
 
     const stopAuth = onAuthStateChanged(auth, (user) => {
@@ -29,11 +31,21 @@ export function useFavorites() {
   const isFavorite = useCallback((name) => favoriteNames.includes(name), [favoriteNames]);
 
   const toggleFavorite = useCallback(async (pokemon) => {
+    if (!pokemon) return;
+    const alreadyFavorite = favoriteNames.includes(pokemon.name);
+
+    if (!firebaseEnabled) {
+      setFavoriteNames((previous) =>
+        alreadyFavorite ? previous.filter((name) => name !== pokemon.name) : [...previous, pokemon.name]
+      );
+      return;
+    }
+
     const user = auth.currentUser;
-    if (!user || !pokemon) return;
+    if (!user) return;
 
     const reference = doc(db, 'users', user.uid, 'favorites', String(pokemon.id));
-    if (favoriteNames.includes(pokemon.name)) {
+    if (alreadyFavorite) {
       await deleteDoc(reference);
     } else {
       await setDoc(reference, { name: pokemon.name });
